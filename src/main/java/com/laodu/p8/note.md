@@ -12,7 +12,7 @@
 
 程序员新建一个.java结尾的文件，该文件称为源文件，在该文件中编写Java源码。语法要保证正确。
 
-### 2.2 使用javac.exe命令对Xxx.java文件进行编译工
+### 2.2 使用javac.exe命令对Xxx.java文件进行编译
 
 语法：
 javac java源文件的路径
@@ -20,7 +20,7 @@ javac java源文件的路径
 
 ### 2.3 当java源文件语法合法，经过javac进行编译，会生成1-N个class文件。
 
-### 2.4 Xxxx.class文件称为字节码文件，字节码文件不是纯机器码，操作系统无法执行执行。
+### 2.4 Xxxx.class文件称为字节码文件，字节码文件不是纯机器码，操作系统无法直接执行。
 
 ### 2.5 使用java命令来运行java程序：
 
@@ -40,7 +40,16 @@ classloader通过一个环境变量classpath找"T.class"文件
 
 执行 T.class 中的入口方法：main 方法。
 
-### 2.8 JVM会将c1ass字节码文件解释成纯机器码二进制，操作系统执行机器码和底层硬件平台进行交互。
+### 2.8 JVM是如何执行字节码的？
+
+JVM 并不是简单地把字节码一条条解释执行。现代 JVM（如 HotSpot）采用**解释器（Interpreter）+ JIT编译器（即时编译器）**的混合执行模式：
+
+- **启动阶段**：解释器逐行将字节码翻译成机器码并执行，保证程序快速启动。
+- **运行阶段（热点检测）**：JVM 实时监控方法调用频率，标记“热点代码”（如循环体、高频调用的方法）。
+- **编译优化**：当热点代码执行频率达到阈值（如 C1 编译器 1500 次，C2 编译器 10000 次），JIT 编译器会在后台将其直接编译成高度优化的纯机器码，并缓存到 JVM 本地内存（Native Memory）中专门的 CodeCache（代码缓存）区域，等待后续复用
+- **后续执行**：再次执行该段逻辑时，JVM 直接执行缓存的机器码，无需重复编译，从而获得接近 C/C++ 的运行时性能。
+
+最终，操作系统调度 JVM 进程，将 JIT 编译好的机器码指令交给 CPU 和底层硬件平台进行交互。
 
 # 环境变量
 
@@ -48,7 +57,7 @@ classloader通过一个环境变量classpath找"T.class"文件
 
 PATH环境变量
 1.PATH环境变量和java无关，是OS级别的一个环境变量。
-2．windows操作系统找命令的时候从哪里开始找？
+2.windows操作系统找命令的时候从哪里开始找？
 默认情况下是从当前路径下找命令，如果找不到，再去path环境变量中查找。如果找到了则执行，找不到就会报错，错误信息如下：
 'fdsafds'不是内部或外部命令，也不是可运行的程序或批处理文件
 
@@ -67,18 +76,12 @@ classloader会从classpath环境变量指定的路径中搜索“字节码文件
 
 ```
     错误：找不到或无法加载主类Test  
-  原因：java.lang.ClassNotFoundException:Test
+原因：java.lang.ClassNotFoundException:Test
 ```
 
 4.当classpath没有配置的情况下，classloader默认去哪里找？
 
 默认去“当前路径”下找。
-
-5.当在操作系统中有了这样一个变量的时候 找不到也不会去 当前目录下查找.class文件
-
-<img src="./img.png"/>
-
-<!-- ... existing code ... -->
 
 5.当在操作系统中有了这样一个变量的时候 找不到也不会去 当前目录下查找.class文件
 
@@ -102,19 +105,28 @@ CLASSPATH=.;C:\libs;C:\myclasses
 - 多个路径用分号 `;` 分隔（Windows），冒号 `:` 分隔（Linux/Mac）
 - `.` 代表当前目录
 
-### 1.2 重要结论
+### 1.2 重要结论（适用范围说明）
 
-一旦显式设置了 classpath（无论通过 -cp 还是环境变量），classloader 不再默认去当前目录找，必须手动把 `.` 加进去。
+**（适用于 Java 8 及以下，以及 Java 9+ 未使用模块路径 `--module-path` 的普通 classpath 场景）**
+
+一旦显式设置了 classpath（无论通过 `-cp` 还是环境变量 `CLASSPATH`），classloader 的默认搜索路径（当前目录）即被覆盖，**不再自动查找当前目录**。若仍需要当前目录，必须手动把 `.` 加进 classpath 中。
 
 ### 1.3 classpath 支持的形式
 
 - 目录路径（.class文件所在的文件夹）
 - JAR文件路径（如 C:\libs\gson.jar）
-- 通配符 `*`（加载目录下所有JAR）
-  java -cp ".;C:\libs*" com.laodu.p8.HelloWorld
+- 通配符 `*`（加载目录下所有 `.jar` / `.JAR` 文件，**不会递归加载子目录**）
+  ```bash
+  # Windows 示例（注意路径分隔符）
+  java -cp ".;C:\libs\*" com.laodu.p8.HelloWorld
+  # Linux/Mac 示例
+  java -cp ".:/home/libs/*" com.laodu.p8.HelloWorld
+  ```
+> ⚠️ 注意：通配符 `*` 仅展开为当前指定目录下的 JAR 文件列表，不包含子目录下的 JAR 包。
+
 - 总结：classpath = 告诉classloader"除了Java SE核心类之外，我的类都在哪些地方"
 - 不指定 → 默认当前目录
-- 指定了 → 只在你指定的地方找，当前目录不再默认包含
+- 指定了 → 只在你指定的地方找，当前目录不再默认包含（除非手动加 `.`）
 
 ## 补充2：JAR包
 
@@ -135,16 +147,24 @@ java -cp ".;C:\libs\gson-2.10.1.jar" com.laodu.p8.HelloWorld
 ### 情况二：缺少程序运行中用到的其他类
 
 程序能启动，但运行到用到那个类的时候才报错（懒加载机制）：
-java public class A { public static void main(String[] args) { System.out.println("开始执行"); // 正常输出 B b = new B(); // 这里报错！如果B.class找不到 } }
+```java
+public class A { 
+    public static void main(String[] args) { 
+        System.out.println("开始执行"); // 正常输出 
+        B b = new B(); // 这里报错！如果B.class找不到 
+    } 
+}
+```
 输出结果：
-开始执行 Exception in thread "main" java.lang.NoClassDefFoundError: B at A.main(A.java:3) Caused by: java.lang.ClassNotFoundException: B
+开始执行 
+Exception in thread "main" java.lang.NoClassDefFoundError: B at A.main(A.java:3) Caused by: java.lang.ClassNotFoundException: B
 - 程序不是启动时就崩，而是"用到哪个类才加载哪个类"
-- 加载不到就抛 NoClassDefFoundError（底层原因是 ClassNotFoundException）
+- 加载不到就抛 `NoClassDefFoundError`（通常发生在**链接（Linking）阶段**，表示该类在编译时存在但在运行时缺失；其底层根因往往是 `ClassLoader` 在加载阶段抛出了 `ClassNotFoundException`，二者在堆栈中常呈因果关系）。
 - 如果代码中某条分支永远走不到，那个分支里引用的类即使缺失也不会报错
 
 总结：
 - 缺启动类 → 启动就崩（ClassNotFoundException）
-- 缺其他类 → 用到时才崩（NoClassDefFoundError）
+- 缺其他类 → 用到时才崩（NoClassDefFoundError，根因是 ClassNotFoundException）
 
 ## 补充4：ClassLoader 类加载器 —— 双亲委派机制
 
@@ -157,7 +177,7 @@ java public class A { public static void main(String[] args) { System.out.printl
 3. 类加载器按"双亲委派"机制加载类
 4. 找到启动类的 .class 文件后，经过 加载→链接→初始化 三个阶段
 5. 找到 main 方法入口，开始执行程序
-6. JVM 将字节码解释成机器码，与操作系统/硬件交互
+6. JVM 采用解释器+JIT混合模式将字节码编译成机器码，与操作系统/硬件交互
 
 ### 4.2 三层类加载器
 
@@ -185,15 +205,15 @@ java public class A { public static void main(String[] args) { System.out.printl
 - 找到 → 加载到JVM → 完成加载
 - 找不到 → 抛出 ClassNotFoundException
 
-简而言之：先上后下，父加载器优先加载，找不到才轮到子加载器。
+简而言之：**先上后下，父加载器优先加载，找不到才轮到子加载器**。
 
 ### 4.4 类加载的三个阶段
 
 1. Loading（加载）：找到.class文件的字节流，在方法区创建对应的Class对象
 2. Linking（链接）：
-   - 验证（Verification）：校验字节码是否合法、安全
-   - 准备（Preparation）：为静态变量分配内存并赋默认值（如int→0，引用→null）
-   - 解析（Resolution）：将符号引用转为直接引用
+    - 验证（Verification）：校验字节码是否合法、安全
+    - 准备（Preparation）：为静态变量分配内存并赋默认值（如int→0，引用→null）
+    - 解析（Resolution）：将符号引用转为直接引用
 3. Initialization（初始化）：执行静态代码块、静态变量赋真实值
 
 ### 4.5 为什么要用双亲委派？
@@ -204,5 +224,5 @@ java public class A { public static void main(String[] args) { System.out.printl
 ### 4.6 懒加载机制
 
 classloader 不是启动时一次性加载所有类，而是"用到哪个类才加载哪个类"。
-更准确地说：类的加载（Loading）可能是懒的，但初始化（Initialization）一定是懒的——类第一次被主动使用时才初始化。
+更准确地说：**类的加载（Loading）可能是懒的，但初始化（Initialization）一定是懒的**——类第一次被主动使用时才初始化。
 这就是为什么缺少非启动类时，程序能启动但运行到那行代码才报错。
