@@ -30,6 +30,9 @@ java 类名
 A.class则类名是A
 T.class则类名是T
 
+注意：如果类有包名，则必须写全限定类名（包名+类名），例如：
+java com.laodu.p8.HelloWorld
+
 ### 2.6 描述 java 这个命令执行之后发生了什么？
 
 首先java命令会启动JVM。
@@ -101,6 +104,7 @@ classloader会从classpath环境变量指定的路径中搜索“字节码文件
 java -cp ".;C:\libs;C:\myclasses" com.laodu.p8.HelloWorld
 方式二：配置系统环境变量 CLASSPATH
 CLASSPATH=.;C:\libs;C:\myclasses
+
 - `-cp` 等价于 `-classpath`
 - 多个路径用分号 `;` 分隔（Windows），冒号 `:` 分隔（Linux/Mac）
 - `.` 代表当前目录
@@ -122,6 +126,7 @@ CLASSPATH=.;C:\libs;C:\myclasses
   # Linux/Mac 示例
   java -cp ".:/home/libs/*" com.laodu.p8.HelloWorld
   ```
+
 > ⚠️ 注意：通配符 `*` 仅展开为当前指定目录下的 JAR 文件列表，不包含子目录下的 JAR 包。
 
 - 总结：classpath = 告诉classloader"除了Java SE核心类之外，我的类都在哪些地方"
@@ -144,9 +149,11 @@ java -cp ".;C:\libs\gson-2.10.1.jar" com.laodu.p8.HelloWorld
 
 程序直接无法启动，报错：
 错误: 找不到或无法加载主类 HelloWorld 原因: java.lang.ClassNotFoundException: HelloWorld
+
 ### 情况二：缺少程序运行中用到的其他类
 
 程序能启动，但运行到用到那个类的时候才报错（懒加载机制）：
+
 ```java
 public class A { 
     public static void main(String[] args) { 
@@ -155,14 +162,17 @@ public class A {
     } 
 }
 ```
+
 输出结果：
-开始执行 
+开始执行
 Exception in thread "main" java.lang.NoClassDefFoundError: B at A.main(A.java:3) Caused by: java.lang.ClassNotFoundException: B
+
 - 程序不是启动时就崩，而是"用到哪个类才加载哪个类"
 - 加载不到就抛 `NoClassDefFoundError`（通常发生在**链接（Linking）阶段**，表示该类在编译时存在但在运行时缺失；其底层根因往往是 `ClassLoader` 在加载阶段抛出了 `ClassNotFoundException`，二者在堆栈中常呈因果关系）。
 - 如果代码中某条分支永远走不到，那个分支里引用的类即使缺失也不会报错
 
 总结：
+
 - 缺启动类 → 启动就崩（ClassNotFoundException）
 - 缺其他类 → 用到时才崩（NoClassDefFoundError，根因是 ClassNotFoundException）
 
@@ -181,11 +191,12 @@ Exception in thread "main" java.lang.NoClassDefFoundError: B at A.main(A.java:3)
 
 ### 4.2 三层类加载器
 
-| 加载器 | 职责 | Java 8 及以前 | Java 9+（含JDK 23） |
-|--------|------|---------------|---------------------|
-| Bootstrap ClassLoader（启动类加载器） | 最先加载 | 加载 rt.jar、resources.jar 等JRE核心JAR | 加载Java平台核心模块（java.base等），不再有rt.jar |
-| Extension / Platform ClassLoader | 第二个加载 | 叫 Extension ClassLoader，加载 jre/lib/ext/ 下的JAR | 改名为 Platform ClassLoader，加载Java平台非核心模块 |
-| Application ClassLoader（应用类加载器） | 最后加载 | 加载用户classpath下的类（没变） | 加载用户classpath下的类（没变） |
+
+| 加载器                                  | 职责       | Java 8 及以前                                       | Java 9+（含JDK 23）                                 |
+| --------------------------------------- | ---------- | --------------------------------------------------- | --------------------------------------------------- |
+| Bootstrap ClassLoader（启动类加载器）   | 最先加载   | 加载 rt.jar、resources.jar 等JRE核心JAR             | 加载Java平台核心模块（java.base等），不再有rt.jar   |
+| Extension / Platform ClassLoader        | 第二个加载 | 叫 Extension ClassLoader，加载 jre/lib/ext/ 下的JAR | 改名为 Platform ClassLoader，加载Java平台非核心模块 |
+| Application ClassLoader（应用类加载器） | 最后加载   | 加载用户classpath下的类（没变）                     | 加载用户classpath下的类（没变）                     |
 
 > 关键差异：Java 9+ 移除了 rt.jar 和 jre/lib/ext/ 目录，改为模块化方式。Extension ClassLoader 改名为 Platform ClassLoader。
 
@@ -202,6 +213,7 @@ Exception in thread "main" java.lang.NoClassDefFoundError: B at A.main(A.java:3)
 第4步：Platform ClassLoader 检查自己负责的平台模块中有没有 → 没有 → 退回给 Application ClassLoader
 
 第5步：Application ClassLoader 在 classpath 指定的路径中查找 .class 文件
+
 - 找到 → 加载到JVM → 完成加载
 - 找不到 → 抛出 ClassNotFoundException
 
@@ -211,9 +223,9 @@ Exception in thread "main" java.lang.NoClassDefFoundError: B at A.main(A.java:3)
 
 1. Loading（加载）：找到.class文件的字节流，在方法区创建对应的Class对象
 2. Linking（链接）：
-    - 验证（Verification）：校验字节码是否合法、安全
-    - 准备（Preparation）：为静态变量分配内存并赋默认值（如int→0，引用→null）
-    - 解析（Resolution）：将符号引用转为直接引用
+   - 验证（Verification）：校验字节码是否合法、安全
+   - 准备（Preparation）：为静态变量分配内存并赋默认值（如int→0，引用→null）
+   - 解析（Resolution）：将符号引用转为直接引用
 3. Initialization（初始化）：执行静态代码块、静态变量赋真实值
 
 ### 4.5 为什么要用双亲委派？
